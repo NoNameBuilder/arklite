@@ -1,6 +1,6 @@
 # arklite
 
-`arklite` is a relatively small (~3.5MB once compiled) command-line archive tool.
+`arklite` is a lightweight, user-friendly command-line archive tool. It provides a unified interface for working with multiple archive formats using consistent commands and signature-based detection of archive format.
 
 Features:
 
