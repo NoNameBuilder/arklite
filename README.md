@@ -1,8 +1,8 @@
 # arklite
 
-`arklite` is a lightweight, user-friendly command-line archive tool. It provides a unified interface for working with multiple archive formats using consistent commands and signature-based detection of archive format.
+`arklite` is a small command-line archive tool.
 
-Features:
+It can:
 
 - list files in an archive
 - extract files
@@ -52,6 +52,12 @@ arklite install [options]
 arklite formats
 ```
 
+Global option:
+
+```bash
+arklite --verbose <command> ...
+```
+
 ## Examples
 
 ```bash
@@ -60,6 +66,8 @@ arklite extract --out out sample.bin
 cat sample.bin | arklite list -
 arklite create --format zip --level 9 out.bin folder
 arklite create --format tar.zst --level 19 out.bin folder
+arklite create --format tar.zst --threads auto out.bin folder
+arklite extract --threads 2 archive.bin
 arklite modify archive.bin --add newfile --remove '.*\.tmp$'
 arklite preview --select conf archive.bin
 arklite search archive.bin readme

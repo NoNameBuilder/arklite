@@ -53,6 +53,7 @@ func runInstall(args []string) error {
 		return err
 	}
 	dst := filepath.Join(targetDir, *name)
+	debugf("installing binary from %s to %s", src, dst)
 	if err := copyExecutable(src, dst); err != nil {
 		return err
 	}

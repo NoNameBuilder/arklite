@@ -22,7 +22,7 @@ import (
 func runCreate(args []string) error {
 	fs := flag.NewFlagSet("create", flag.ContinueOnError)
 	formatStr := fs.String("format", "", "archive format: zip|tar|tar.gz|tar.xz|tar.zst")
-	threads := fs.Int("threads", defaultThreads(), "compression threads for tar.zst")
+	threadsValue := fs.String("threads", "auto", "worker count for tar.zst compression: auto or positive integer")
 	level := fs.Int("level", -1, "compression level (zip/gz: 0-9, zst: 1-22; -1 default)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -35,6 +35,10 @@ func runCreate(args []string) error {
 	}
 	outPath := fs.Arg(0)
 	inputs := fs.Args()[1:]
+	threads, err := parseThreads(*threadsValue)
+	if err != nil {
+		return err
+	}
 
 	switch strings.ToLower(*formatStr) {
 	case "zip":
@@ -43,16 +47,16 @@ func runCreate(args []string) error {
 		if *level != -1 {
 			return fmt.Errorf("--level is not used for tar")
 		}
-		return createTar(outPath, inputs, "none", *threads)
+		return createTar(outPath, inputs, "none", threads)
 	case "tar.gz", "targz", "tgz":
-		return createTar(outPath, inputs, "gz", *threads, *level)
+		return createTar(outPath, inputs, "gz", threads, *level)
 	case "tar.xz", "tarxz", "txz":
 		if *level != -1 {
 			return fmt.Errorf("--level is not currently supported for tar.xz")
 		}
-		return createTar(outPath, inputs, "xz", *threads)
+		return createTar(outPath, inputs, "xz", threads)
 	case "tar.zst", "tarzst", "tzst":
-		return createTar(outPath, inputs, "zst", *threads, *level)
+		return createTar(outPath, inputs, "zst", threads, *level)
 	default:
 		return fmt.Errorf("unsupported create format %q", *formatStr)
 	}

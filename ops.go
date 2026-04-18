@@ -187,7 +187,7 @@ func runExtract(args []string) error {
 	fs := flag.NewFlagSet("extract", flag.ContinueOnError)
 	out := fs.String("out", ".", "output directory")
 	flat := fs.Bool("flat", false, "extract to current dir without archive folder")
-	threads := fs.Int("threads", defaultThreads(), "parallel workers for zip")
+	threadsValue := fs.String("threads", "auto", "worker count for zip extraction: auto or positive integer")
 	include := fs.String("include", "", "regex of entries to extract")
 	exclude := fs.String("exclude", "", "regex of entries to skip")
 	dryRun := fs.Bool("dry-run", false, "only print what would be extracted")
@@ -203,6 +203,11 @@ func runExtract(args []string) error {
 	}
 	defer cleanup()
 
+	threads, err := parseThreads(*threadsValue)
+	if err != nil {
+		return err
+	}
+
 	outDir := sanitizeOutputDir(*out)
 	if !*flat {
 		base := archiveBaseName(fs.Arg(0))
@@ -213,6 +218,7 @@ func runExtract(args []string) error {
 	if err != nil {
 		return err
 	}
+	debugf("detected archive format: %s", format)
 	includeRe, err := compileRegexMaybe(*include)
 	if err != nil {
 		return fmt.Errorf("invalid include regex: %w", err)
@@ -239,7 +245,7 @@ func runExtract(args []string) error {
 
 	switch format {
 	case FmtZip:
-		return extractZIP(src, outDir, *threads, allow, *dryRun)
+		return extractZIP(src, outDir, threads, allow, *dryRun)
 	case FmtTar, FmtGzip, FmtXz, FmtZstd:
 		err := extractTarFamily(src, outDir, format, allow, *dryRun)
 		if err == nil {
@@ -262,6 +268,7 @@ func listArchive(path string) ([]Entry, Format, error) {
 	if err != nil {
 		return nil, FmtUnknown, err
 	}
+	debugf("detected archive format: %s", format)
 
 	switch format {
 	case FmtZip:
@@ -527,6 +534,7 @@ func runTest(args []string) error {
 	if err != nil {
 		return err
 	}
+	debugf("detected archive format: %s", format)
 	switch format {
 	case FmtZip:
 		r, err := zip.OpenReader(src)

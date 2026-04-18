@@ -10,13 +10,33 @@ import (
 	"strings"
 )
 
+var verbose bool
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(2)
 	}
-	cmd := os.Args[1]
-	args := os.Args[2:]
+
+	args := os.Args[1:]
+	for len(args) > 0 {
+		switch args[0] {
+		case "--verbose", "-v":
+			verbose = true
+			args = args[1:]
+		default:
+			goto parsed
+		}
+	}
+
+parsed:
+	if len(args) == 0 {
+		printUsage()
+		os.Exit(2)
+	}
+
+	cmd := args[0]
+	args = args[1:]
 
 	var err error
 	switch cmd {
@@ -47,14 +67,14 @@ func main() {
 		return
 	default:
 		printUsage()
-		fmt.Fprintf(os.Stderr, "\nunknown command: %s\n", cmd)
+		fmt.Fprintf(os.Stderr, "\nError: unknown command %q\n", cmd)
 		os.Exit(2)
 	}
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return
 		}
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		printError(cmd, err)
 		os.Exit(1)
 	}
 }
@@ -64,6 +84,7 @@ func printUsage() {
 	fmt.Printf(`%s: portable archive CLI
 
 Usage:
+  %s [--verbose] <command> [options]
   %s extract [options] <archive|-> 
   %s list [options] <archive|->
   %s create --format <fmt> [options] <output> <input...>
@@ -88,10 +109,10 @@ Commands:
 Examples:
   %s extract a.bin --out outdir
   cat archive.bin | %s list -
-  %s create --format zip out.any ./folder
-  %s create --format zip --level 9 out.any ./folder
-  %s create --format tar.zst out.any ./folder
-  %s modify a.any --add ./newfile --remove '.*\\.tmp$'
+  %s create --format zip out.any folder
+  %s create --format zip --level 9 out.any folder
+  %s create --format tar.zst out.any folder
+  %s modify a.any --add newfile --remove '.*\\.tmp$'
   %s test archive.any
   %s install --user
   sudo %s install --system
@@ -99,7 +120,7 @@ Examples:
 Platform:
   Primary: Linux
   Also supported: Windows, macOS, FreeBSD (best effort, external tools may vary)
-`, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe)
+`, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe, exe)
 }
 
 func printFormats() {
@@ -128,4 +149,18 @@ func sanitizeOutputDir(path string) string {
 		return "."
 	}
 	return path
+}
+
+func debugf(format string, args ...any) {
+	if verbose {
+		fmt.Fprintf(os.Stderr, "verbose: "+format+"\n", args...)
+	}
+}
+
+func printError(cmd string, err error) {
+	fmt.Fprintf(os.Stderr, "Error: %s failed.\n", cmd)
+	fmt.Fprintf(os.Stderr, "Reason: %v\n", err)
+	if verbose {
+		fmt.Fprintf(os.Stderr, "Command: %s\n", cmd)
+	}
 }

@@ -13,6 +13,7 @@ import (
 
 func resolveInputArchive(path string) (string, func(), error) {
 	if path != "-" {
+		debugf("using archive path: %s", path)
 		return path, func() {}, nil
 	}
 	tmp, err := os.CreateTemp("", "arklite-stdin-*.bin")
@@ -28,6 +29,7 @@ func resolveInputArchive(path string) (string, func(), error) {
 		_ = os.Remove(tmp.Name())
 		return "", nil, err
 	}
+	debugf("buffered stdin archive to temporary file: %s", tmp.Name())
 	return tmp.Name(), func() { _ = os.Remove(tmp.Name()) }, nil
 }
 
@@ -38,6 +40,7 @@ func toolExists(name string) bool {
 
 func listExternal(path string, format Format) ([]Entry, error) {
 	if toolExists("7z") {
+		debugf("listing %s archive with 7z", format)
 		out, err := exec.Command("7z", "l", "-ba", path).CombinedOutput()
 		if err != nil {
 			return nil, fmt.Errorf("7z list failed: %w\n%s", err, string(out))
@@ -48,6 +51,7 @@ func listExternal(path string, format Format) ([]Entry, error) {
 		}
 	}
 	if toolExists("bsdtar") {
+		debugf("listing %s archive with bsdtar", format)
 		out, err := exec.Command("bsdtar", "-tf", path).CombinedOutput()
 		if err != nil {
 			return nil, fmt.Errorf("bsdtar list failed: %w\n%s", err, string(out))
@@ -64,6 +68,7 @@ func listExternal(path string, format Format) ([]Entry, error) {
 		return entries, nil
 	}
 	if format == FmtRar && toolExists("unrar") {
+		debugf("listing rar archive with unrar")
 		out, err := exec.Command("unrar", "lb", path).CombinedOutput()
 		if err != nil {
 			return nil, fmt.Errorf("unrar list failed: %w\n%s", err, string(out))
@@ -93,6 +98,7 @@ func listExternal(path string, format Format) ([]Entry, error) {
 
 func extractExternal(path, outDir string, format Format) error {
 	if toolExists("7z") {
+		debugf("extracting %s archive with 7z into %s", format, outDir)
 		cmd := exec.Command("7z", "x", "-y", "-o"+outDir, path)
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
@@ -102,6 +108,7 @@ func extractExternal(path, outDir string, format Format) error {
 		return nil
 	}
 	if toolExists("bsdtar") {
+		debugf("extracting %s archive with bsdtar into %s", format, outDir)
 		cmd := exec.Command("bsdtar", "-xf", path, "-C", outDir)
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
@@ -111,6 +118,7 @@ func extractExternal(path, outDir string, format Format) error {
 		return nil
 	}
 	if format == FmtRar && toolExists("unrar") {
+		debugf("extracting rar archive with unrar into %s", outDir)
 		cmd := exec.Command("unrar", "x", "-o+", path, filepath.Clean(outDir))
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
@@ -133,6 +141,7 @@ func extractExternal(path, outDir string, format Format) error {
 
 func testExternal(path string, format Format) error {
 	if toolExists("7z") {
+		debugf("testing %s archive with 7z", format)
 		out, err := exec.Command("7z", "t", path).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("7z test failed: %w\n%s", err, string(out))
@@ -140,6 +149,7 @@ func testExternal(path string, format Format) error {
 		return nil
 	}
 	if toolExists("bsdtar") {
+		debugf("testing %s archive with bsdtar", format)
 		out, err := exec.Command("bsdtar", "-tf", path).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("bsdtar test failed: %w\n%s", err, string(out))
@@ -147,6 +157,7 @@ func testExternal(path string, format Format) error {
 		return nil
 	}
 	if format == FmtRar && toolExists("unrar") {
+		debugf("testing rar archive with unrar")
 		out, err := exec.Command("unrar", "t", "-idq", path).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("unrar test failed: %w\n%s", err, string(out))
