@@ -2,7 +2,7 @@
 
 `arklite` is a relatively small (~3.5MB once compiled) command-line archive tool.
 
-It can:
+Features:
 
 - list files in an archive
 - extract files
