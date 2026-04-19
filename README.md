@@ -39,6 +39,8 @@ If you want a full desktop archive manager with previews and GUI integration, us
 
 ## Build
 
+# Building is preferred over using the precompiled binary.
+
 Needs Go `1.22+`.
 
 ```bash
