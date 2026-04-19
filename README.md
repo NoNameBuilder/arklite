@@ -37,7 +37,8 @@ Compared with raw archive tools:
 
 If you want a full desktop archive manager with previews and GUI integration, use Ark. If you want a terminal tool with one consistent interface, use `arklite`.
 
-## Building is preferred over using the precompiled binary.
+## Building it is preferred over using the precompiled binary.
+- Takes only ~2 seconds.
 
 ## Build
 
