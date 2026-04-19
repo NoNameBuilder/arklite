@@ -95,6 +95,11 @@ jobs:
         run: |
           mkdir -p upload
           find dist -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp {} upload/ \;
+      - name: checksums
+        run: |
+          cd upload
+          sha256sum *.zip *.tar.gz > SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           files: upload/*
+          generate_release_notes: true
