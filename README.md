@@ -13,6 +13,30 @@ It can:
 
 It detects archive type by file signature, not by file extension.
 
+## Why use arklite
+
+Use `arklite` if you want:
+
+- one small CLI binary instead of a full GUI archive manager
+- the same commands in scripts, terminals, SSH sessions, and containers
+- signature-based detection instead of trusting file extensions
+- stdin support, fuzzy search, JSON output, and fast basic archive workflows
+- a simpler interface than mixing `tar`, `zip`, `unzip`, `7z`, and other tools by hand
+
+Compared with KDE Ark:
+
+- `arklite` is CLI-first
+- `arklite` fits headless systems and automation better
+- `arklite` is easier to ship as a single binary
+
+Compared with raw archive tools:
+
+- `arklite` gives one command layout across formats
+- `arklite` has cleaner defaults and clearer errors
+- `arklite` avoids extension-based guessing
+
+If you want a full desktop archive manager with previews and GUI integration, use Ark. If you want a terminal tool with one consistent interface, use `arklite`.
+
 ## Build
 
 Needs Go `1.22+`.
