@@ -95,11 +95,14 @@ arklite create --format zip --level 9 out.bin folder
 arklite create --format tar.zst --level 19 out.bin folder
 arklite create --format tar.zst --threads auto out.bin folder
 arklite extract --threads 2 archive.bin
+arklite extract --auto-root example.zip
 arklite modify archive.bin --add newfile --remove '.*\.tmp$'
 arklite preview --select conf archive.bin
 arklite search archive.bin readme
 arklite test archive.bin
 ```
+
+`arklite extract --auto-root example.zip` keeps the default output folder name `example`, but if the archive already contains a single shared top-level folder like `example/program`, it strips that layer and extracts to `example/program`.
 
 ## Formats
 

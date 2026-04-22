@@ -187,6 +187,7 @@ func runExtract(args []string) error {
 	fs := flag.NewFlagSet("extract", flag.ContinueOnError)
 	out := fs.String("out", ".", "output directory")
 	flat := fs.Bool("flat", false, "extract to current dir without archive folder")
+	autoRoot := fs.Bool("auto-root", false, "strip one shared top-level folder from archive entries")
 	threadsValue := fs.String("threads", "auto", "worker count for zip extraction: auto or positive integer")
 	include := fs.String("include", "", "regex of entries to extract")
 	exclude := fs.String("exclude", "", "regex of entries to skip")
@@ -211,7 +212,7 @@ func runExtract(args []string) error {
 	outDir := sanitizeOutputDir(*out)
 	if !*flat {
 		base := archiveBaseName(fs.Arg(0))
-		outDir = filepath.Join(outDir, base+"_out")
+		outDir = filepath.Join(outDir, base)
 	}
 
 	format, err := mustDetect(src)
@@ -245,9 +246,9 @@ func runExtract(args []string) error {
 
 	switch format {
 	case FmtZip:
-		return extractZIP(src, outDir, threads, allow, *dryRun)
+		return extractZIP(src, outDir, threads, allow, *autoRoot, *dryRun)
 	case FmtTar, FmtGzip, FmtXz, FmtZstd:
-		err := extractTarFamily(src, outDir, format, allow, *dryRun)
+		err := extractTarFamily(src, outDir, format, allow, *autoRoot, *dryRun)
 		if err == nil {
 			return nil
 		}
@@ -333,18 +334,24 @@ func listTarFamily(path string, format Format) ([]Entry, error) {
 	return out, nil
 }
 
-func extractZIP(path, outDir string, threads int, allow func(string) bool, dryRun bool) error {
+func extractZIP(path, outDir string, threads int, allow func(string) bool, autoRoot, dryRun bool) error {
 	r, err := zip.OpenReader(path)
 	if err != nil {
 		return err
 	}
 	defer r.Close()
 
+	rootPrefix := ""
+	if autoRoot {
+		rootPrefix = detectSharedRootZIP(r.File, allow)
+	}
+
 	if threads < 1 {
 		threads = 1
 	}
 	type task struct {
-		f *zip.File
+		f    *zip.File
+		name string
 	}
 	tasks := make(chan task, threads*2)
 	errCh := make(chan error, 1)
@@ -366,7 +373,7 @@ func extractZIP(path, outDir string, threads int, allow func(string) bool, dryRu
 	worker := func() {
 		defer wg.Done()
 		for t := range tasks {
-			if e := extractOneZIPFile(t.f, outDir, counter); e != nil {
+			if e := extractOneZIPFile(t.f, t.name, outDir, counter); e != nil {
 				select {
 				case errCh <- e:
 				default:
@@ -383,8 +390,12 @@ func extractZIP(path, outDir string, threads int, allow func(string) bool, dryRu
 		if allow != nil && !allow(f.Name) {
 			continue
 		}
+		name := stripSharedRoot(f.Name, rootPrefix)
+		if name == "" {
+			continue
+		}
 		if dryRun {
-			fmt.Println(f.Name)
+			fmt.Println(name)
 			continue
 		}
 		select {
@@ -394,7 +405,7 @@ func extractZIP(path, outDir string, threads int, allow func(string) bool, dryRu
 			return e
 		default:
 		}
-		tasks <- task{f: f}
+		tasks <- task{f: f, name: name}
 	}
 	close(tasks)
 	wg.Wait()
@@ -406,8 +417,8 @@ func extractZIP(path, outDir string, threads int, allow func(string) bool, dryRu
 	}
 }
 
-func extractOneZIPFile(f *zip.File, outDir string, counter *byteCounter) error {
-	target, err := secureJoin(outDir, f.Name)
+func extractOneZIPFile(f *zip.File, name, outDir string, counter *byteCounter) error {
+	target, err := secureJoin(outDir, name)
 	if err != nil {
 		return err
 	}
@@ -433,12 +444,20 @@ func extractOneZIPFile(f *zip.File, outDir string, counter *byteCounter) error {
 	return err
 }
 
-func extractTarFamily(path, outDir string, format Format, allow func(string) bool, dryRun bool) error {
+func extractTarFamily(path, outDir string, format Format, allow func(string) bool, autoRoot, dryRun bool) error {
 	rc, closeFn, err := openTarStream(path, format)
 	if err != nil {
 		return err
 	}
 	defer closeFn()
+
+	rootPrefix := ""
+	if autoRoot {
+		rootPrefix, err = detectSharedRootTar(path, format, allow)
+		if err != nil {
+			return err
+		}
+	}
 
 	stat, _ := os.Stat(path)
 	total := int64(0)
@@ -461,8 +480,12 @@ func extractTarFamily(path, outDir string, format Format, allow func(string) boo
 		if allow != nil && !allow(h.Name) {
 			continue
 		}
+		name := stripSharedRoot(h.Name, rootPrefix)
+		if name == "" {
+			continue
+		}
 		if dryRun {
-			fmt.Println(h.Name)
+			fmt.Println(name)
 			if h.Typeflag == tar.TypeReg || h.Typeflag == tar.TypeRegA {
 				if _, err := io.Copy(io.Discard, tr); err != nil {
 					return err
@@ -470,7 +493,7 @@ func extractTarFamily(path, outDir string, format Format, allow func(string) boo
 			}
 			continue
 		}
-		target, err := secureJoin(outDir, h.Name)
+		target, err := secureJoin(outDir, name)
 		if err != nil {
 			return err
 		}
@@ -508,6 +531,89 @@ func extractTarFamily(path, outDir string, format Format, allow func(string) boo
 		default:
 		}
 	}
+}
+
+func detectSharedRootZIP(files []*zip.File, allow func(string) bool) string {
+	var names []string
+	for _, f := range files {
+		if allow != nil && !allow(f.Name) {
+			continue
+		}
+		names = append(names, f.Name)
+	}
+	return detectSharedRoot(names)
+}
+
+func detectSharedRootTar(path string, format Format, allow func(string) bool) (string, error) {
+	rc, closeFn, err := openTarStream(path, format)
+	if err != nil {
+		return "", err
+	}
+	defer closeFn()
+
+	tr := tar.NewReader(rc)
+	var names []string
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		if allow != nil && !allow(h.Name) {
+			continue
+		}
+		names = append(names, h.Name)
+	}
+	return detectSharedRoot(names), nil
+}
+
+func detectSharedRoot(names []string) string {
+	root := ""
+	seenNested := false
+	for _, name := range names {
+		clean := strings.Trim(strings.ReplaceAll(name, "\\", "/"), "/")
+		if clean == "" {
+			continue
+		}
+		parts := strings.Split(clean, "/")
+		if len(parts) < 2 {
+			if root == "" {
+				root = parts[0]
+				continue
+			}
+			if root != parts[0] {
+				return ""
+			}
+			continue
+		}
+		if root == "" {
+			root = parts[0]
+		} else if root != parts[0] {
+			return ""
+		}
+		seenNested = true
+	}
+	if !seenNested || root == "" {
+		return ""
+	}
+	return root
+}
+
+func stripSharedRoot(name, root string) string {
+	clean := strings.Trim(strings.ReplaceAll(name, "\\", "/"), "/")
+	if clean == "" || root == "" {
+		return clean
+	}
+	prefix := root + "/"
+	if clean == root {
+		return ""
+	}
+	if strings.HasPrefix(clean, prefix) {
+		return strings.TrimPrefix(clean, prefix)
+	}
+	return clean
 }
 
 func compileRegexMaybe(v string) (*regexp.Regexp, error) {
