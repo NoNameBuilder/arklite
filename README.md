@@ -124,3 +124,6 @@ Also detected:
 - `rpm`
 
 Some non-built-in formats need external tools.
+
+## Extra note
+If you have any suggestions, tell them in the issues tab.
